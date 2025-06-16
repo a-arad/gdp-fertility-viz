@@ -152,7 +152,7 @@
           "id": "frontend-testing",
           "max_turns": 100,
           "retry_count": 0,
-          "status": "pending",
+          "status": "running",
           "title": "Implement Frontend Unit Tests"
         }
       }
