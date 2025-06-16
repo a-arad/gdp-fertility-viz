@@ -59,20 +59,19 @@ def health_check():
 def get_countries():
     """
     Get list of available countries.
-    
+
     Returns:
         JSON response with list of countries including code and name
     """
     try:
         logger.info("Fetching available countries")
         countries = get_available_countries()
-        
+
+        # Return countries directly for frontend compatibility
         return jsonify({
-            'success': True,
-            'data': countries,
-            'count': len(countries)
+            'countries': countries
         })
-        
+
     except Exception as e:
         logger.error(f"Error in get_countries: {str(e)}")
         return jsonify({
@@ -86,39 +85,39 @@ def get_countries():
 def get_data():
     """
     Get combined GDP and fertility data for specified countries and years.
-    
+
     Query parameters:
         countries: Comma-separated list of country codes
-        start_year: Starting year (default: 1990)
-        end_year: Ending year (default: 2022)
-    
+        start_year: Starting year (default: 1960)
+        end_year: Ending year (default: 2023)
+
     Returns:
         JSON response with combined GDP and fertility data
     """
     try:
         # Parse query parameters
         countries_param = request.args.get('countries')
-        start_year = int(request.args.get('start_year', 1990))
-        end_year = int(request.args.get('end_year', 2022))
-        
+        start_year = int(request.args.get('start_year', 1960))
+        end_year = int(request.args.get('end_year', 2023))
+
         if not countries_param:
-            return jsonify({
-                'success': False,
-                'error': 'Missing required parameter',
-                'message': 'countries parameter is required'
-            }), 400
-        
-        # Parse and validate countries
-        countries = [country.strip().upper() for country in countries_param.split(',')]
+            # Default to a set of major countries if none specified
+            countries = ['USA', 'CHN', 'IND', 'JPN', 'DEU', 'GBR', 'FRA', 'BRA', 'CAN', 'AUS', 
+                        'KOR', 'MEX', 'IDN', 'TUR', 'RUS', 'ITA', 'ESP', 'NLD', 'CHE', 'SWE',
+                        'NOR', 'DNK', 'FIN', 'BEL', 'AUT', 'NZL', 'SGP', 'ARE', 'ISR', 'HKG']
+        else:
+            # Parse and validate countries
+            countries = [country.strip().upper() for country in countries_param.split(',')]
+
         valid_countries = validate_country_codes(countries)
-        
+
         if not valid_countries:
             return jsonify({
                 'success': False,
                 'error': 'Invalid countries',
                 'message': 'No valid country codes provided'
             }), 400
-        
+
         # Validate year range
         if start_year > end_year:
             return jsonify({
@@ -126,29 +125,22 @@ def get_data():
                 'error': 'Invalid year range',
                 'message': 'start_year must be less than or equal to end_year'
             }), 400
-        
+
         if start_year < 1960 or end_year > 2030:
             return jsonify({
                 'success': False,
                 'error': 'Invalid year range',
                 'message': 'Years must be between 1960 and 2030'
             }), 400
-        
+
         logger.info(f"Fetching data for countries: {valid_countries}, years: {start_year}-{end_year}")
-        
+
         # Fetch the data
         data = fetch_combined_data(valid_countries, start_year, end_year)
-        
-        response = {
-            'success': True,
-            'data': data,
-            'requested_countries': countries,
-            'valid_countries': valid_countries,
-            'invalid_countries': [c for c in countries if c not in valid_countries]
-        }
-        
-        return jsonify(response)
-        
+
+        # Return data directly for frontend compatibility
+        return jsonify(data)
+
     except ValueError as e:
         logger.error(f"Value error in get_data: {str(e)}")
         return jsonify({
@@ -156,7 +148,7 @@ def get_data():
             'error': 'Invalid parameters',
             'message': str(e)
         }), 400
-        
+
     except Exception as e:
         logger.error(f"Error in get_data: {str(e)}")
         return jsonify({
@@ -170,12 +162,12 @@ def get_data():
 def get_gdp_data():
     """
     Get GDP data for specified countries and years.
-    
+
     Query parameters:
         countries: Comma-separated list of country codes
         start_year: Starting year (default: 1990)
         end_year: Ending year (default: 2022)
-    
+
     Returns:
         JSON response with GDP data
     """
@@ -184,30 +176,30 @@ def get_gdp_data():
         countries_param = request.args.get('countries')
         start_year = int(request.args.get('start_year', 1990))
         end_year = int(request.args.get('end_year', 2022))
-        
+
         if not countries_param:
             return jsonify({
                 'success': False,
                 'error': 'Missing required parameter',
                 'message': 'countries parameter is required'
             }), 400
-        
+
         # Parse and validate countries
         countries = [country.strip().upper() for country in countries_param.split(',')]
         valid_countries = validate_country_codes(countries)
-        
+
         if not valid_countries:
             return jsonify({
                 'success': False,
                 'error': 'Invalid countries',
                 'message': 'No valid country codes provided'
             }), 400
-        
+
         logger.info(f"Fetching GDP data for countries: {valid_countries}, years: {start_year}-{end_year}")
-        
+
         # Fetch the data
         data = fetch_gdp_data(valid_countries, start_year, end_year)
-        
+
         return jsonify({
             'success': True,
             'data': data,
@@ -215,7 +207,7 @@ def get_gdp_data():
             'requested_countries': countries,
             'valid_countries': valid_countries
         })
-        
+
     except Exception as e:
         logger.error(f"Error in get_gdp_data: {str(e)}")
         return jsonify({
@@ -229,12 +221,12 @@ def get_gdp_data():
 def get_fertility_data():
     """
     Get fertility rate data for specified countries and years.
-    
+
     Query parameters:
         countries: Comma-separated list of country codes
         start_year: Starting year (default: 1990)
         end_year: Ending year (default: 2022)
-    
+
     Returns:
         JSON response with fertility data
     """
@@ -243,30 +235,30 @@ def get_fertility_data():
         countries_param = request.args.get('countries')
         start_year = int(request.args.get('start_year', 1990))
         end_year = int(request.args.get('end_year', 2022))
-        
+
         if not countries_param:
             return jsonify({
                 'success': False,
                 'error': 'Missing required parameter',
                 'message': 'countries parameter is required'
             }), 400
-        
+
         # Parse and validate countries
         countries = [country.strip().upper() for country in countries_param.split(',')]
         valid_countries = validate_country_codes(countries)
-        
+
         if not valid_countries:
             return jsonify({
                 'success': False,
                 'error': 'Invalid countries',
                 'message': 'No valid country codes provided'
             }), 400
-        
+
         logger.info(f"Fetching fertility data for countries: {valid_countries}, years: {start_year}-{end_year}")
-        
+
         # Fetch the data
         data = fetch_fertility_data(valid_countries, start_year, end_year)
-        
+
         return jsonify({
             'success': True,
             'data': data,
@@ -274,7 +266,7 @@ def get_fertility_data():
             'requested_countries': countries,
             'valid_countries': valid_countries
         })
-        
+
     except Exception as e:
         logger.error(f"Error in get_fertility_data: {str(e)}")
         return jsonify({
@@ -286,4 +278,4 @@ def get_fertility_data():
 
 if __name__ == '__main__':
     logger.info("Starting GDP Fertility Viz API server")
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5001)

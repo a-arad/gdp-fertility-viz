@@ -162,19 +162,32 @@ def get_available_countries() -> List[Dict[str, str]]:
     Get list of available countries from World Bank API.
     
     Returns:
-        List of dictionaries containing country code and name
+        List of dictionaries containing country code, name, and region
     """
     try:
         logger.info("Fetching available countries")
         
-        countries_data = wb.economy.list()
+        # First, get region mappings
+        region_map = {}
+        try:
+            for region in wb.region.list():
+                if isinstance(region, dict):
+                    region_map[region.get('code', region.get('id', ''))] = region.get('name', 'Unknown')
+        except Exception as e:
+            logger.warning(f"Could not fetch region mappings: {e}")
+        
+        # Fetch economies with their metadata
         countries = []
         
-        for country in countries_data:
-            if country.get('id') and country.get('value'):
+        # Get all economies (countries) - filter out aggregates
+        for economy in wb.economy.list():
+            # Skip aggregate regions (like Africa Eastern and Southern)
+            if isinstance(economy, dict) and not economy.get('aggregate', True):
+                region_code = economy.get('region', '')
                 countries.append({
-                    'code': country['id'],
-                    'name': country['value']
+                    'code': economy['id'],
+                    'name': economy['value'],
+                    'region': region_map.get(region_code, region_code or 'Unknown')
                 })
         
         logger.info(f"Found {len(countries)} available countries")
