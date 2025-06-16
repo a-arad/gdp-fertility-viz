@@ -1,62 +1,162 @@
 {
-  "orchestration": {
-    "auto_coordination": true,
-    "max_parallel_tasks": 3,
-    "review_required": true
-  },
-  "project": {
-    "architecture": {
-      "backend": {
-        "framework": "Flask",
-        "language": "Python",
-        "libraries": [
-          "wbgapi",
-          "flask-cors"
+  "created_at": "2025-06-16T18:57:56.003488+00:00",
+  "orchestration_plan": {
+    "execution_phases": [
+      {
+        "name": "Phase 1",
+        "parallel_tasks": [],
+        "sequential_tasks": [
+          "backend-data-fetch"
         ]
       },
-      "database": null,
-      "deployment": "Vercel",
-      "frontend": {
-        "framework": "vanilla",
-        "language": "JavaScript",
-        "libraries": [
-          "d3",
-          "axios"
+      {
+        "name": "Phase 2",
+        "parallel_tasks": [
+          "backend-testing",
+          "frontend-interactive-viz"
+        ],
+        "sequential_tasks": []
+      },
+      {
+        "name": "Phase 3",
+        "parallel_tasks": [],
+        "sequential_tasks": [
+          "frontend-country-selection"
         ]
-      }
-    },
-    "description": "Interactive D3 visualization of GDP vs fertility rate over time using World Bank data",
-    "features": [
-      {
-        "description": "Python backend to fetch GDP and fertility rate data from World Bank API",
-        "name": "Data Fetching",
-        "priority": "high"
       },
       {
-        "description": "D3.js scatter plot with time slider showing GDP vs fertility rate",
-        "name": "Interactive Visualization",
-        "priority": "high"
-      },
-      {
-        "description": "Dropdown to select and highlight specific countries",
-        "name": "Country Selection",
-        "priority": "medium"
+        "name": "Phase 4",
+        "parallel_tasks": [],
+        "sequential_tasks": [
+          "frontend-testing"
+        ]
       }
     ],
-    "implementation_plan": {
-      "phases": [
-        {
-          "description": "Create Flask API to fetch World Bank data",
-          "name": "Backend Setup",
-          "tasks": []
-        },
-        {
-          "description": "Build D3 visualization with time controls",
-          "name": "Frontend Visualization",
-          "tasks": []
-        }
+    "parallel_groups": [
+      [
+        "backend-testing",
+        "frontend-interactive-viz"
       ]
-    },
-    "name": "gdp-fertility-viz"
-  }
+    ],
+    "task_graph": {
+      "dependencies": {
+        "backend-data-fetch": [],
+        "backend-testing": [
+          "backend-data-fetch"
+        ],
+        "frontend-country-selection": [
+          "frontend-interactive-viz"
+        ],
+        "frontend-interactive-viz": [
+          "backend-data-fetch"
+        ],
+        "frontend-testing": [
+          "frontend-interactive-viz",
+          "frontend-country-selection"
+        ]
+      },
+      "dependents": {
+        "backend-data-fetch": [
+          "frontend-interactive-viz",
+          "backend-testing"
+        ],
+        "backend-testing": [],
+        "frontend-country-selection": [
+          "frontend-testing"
+        ],
+        "frontend-interactive-viz": [
+          "frontend-testing",
+          "frontend-country-selection"
+        ],
+        "frontend-testing": []
+      },
+      "tasks": {
+        "backend-data-fetch": {
+          "component": "backend",
+          "dependencies": [],
+          "description": "Develop and integrate the data fetching functionality in the Python backend by enhancing backend/data_fetcher.py and app.py to retrieve GDP and fertility rate data using the wbgapi library. Follow the patterns and guidance in backend/CLAUDE.md and ensure that CORS is handled by flask-cors. This task must adhere to the established repository structure and coding conventions.",
+          "environment": {
+            "DELIVERABLES": "backend/data_fetcher.py (updated/finalized data fetching logic),backend/app.py (updated endpoint for data fetching)",
+            "ESTIMATED_TURNS": "8",
+            "TASK_COMPONENT": "backend"
+          },
+          "id": "backend-data-fetch",
+          "max_turns": 100,
+          "retry_count": 0,
+          "status": "pending",
+          "title": "Implement Backend Data Fetching from World Bank API"
+        },
+        "backend-testing": {
+          "component": "testing",
+          "dependencies": [
+            "backend-data-fetch"
+          ],
+          "description": "Write and update unit tests for the backend data fetching functionality in tests/backend.test.py. Reference patterns in backend/CLAUDE.md and ensure that the tests validate correct data retrieval from the World Bank API and proper error handling.",
+          "environment": {
+            "DELIVERABLES": "tests/backend.test.py (enhanced with tests for the data fetching functionality)",
+            "ESTIMATED_TURNS": "8",
+            "TASK_COMPONENT": "testing"
+          },
+          "id": "backend-testing",
+          "max_turns": 100,
+          "retry_count": 0,
+          "status": "pending",
+          "title": "Implement Backend Unit Tests"
+        },
+        "frontend-country-selection": {
+          "component": "frontend",
+          "dependencies": [
+            "frontend-interactive-viz"
+          ],
+          "description": "Enhance the interactive visualization by adding a dropdown for country selection and highlight functionality in frontend/app.js and index.html. Make sure to follow the guidance in frontend/CLAUDE.md and integrate this feature with the existing D3 visualization implemented in 'frontend-interactive-viz'.",
+          "environment": {
+            "DELIVERABLES": "frontend/app.js (updated to include country selection dropdown and highlight logic),frontend/index.html (updated with dropdown UI element)",
+            "ESTIMATED_TURNS": "8",
+            "TASK_COMPONENT": "frontend"
+          },
+          "id": "frontend-country-selection",
+          "max_turns": 100,
+          "retry_count": 0,
+          "status": "pending",
+          "title": "Add Country Selection Feature to Visualization"
+        },
+        "frontend-interactive-viz": {
+          "component": "frontend",
+          "dependencies": [
+            "backend-data-fetch"
+          ],
+          "description": "Implement an interactive scatter plot visualization in frontend/app.js and index.html using D3.js. Include a time slider to animate the GDP vs fertility rate data. Follow the project's existing front-end guidelines as per frontend/CLAUDE.md. This task assumes that the backend API from 'backend-data-fetch' is available and properly returning data.",
+          "environment": {
+            "DELIVERABLES": "frontend/app.js (with D3.js scatter plot and time slider integration),frontend/index.html (updated to include visualization and slider)",
+            "ESTIMATED_TURNS": "8",
+            "TASK_COMPONENT": "frontend"
+          },
+          "id": "frontend-interactive-viz",
+          "max_turns": 100,
+          "retry_count": 0,
+          "status": "pending",
+          "title": "Create Interactive D3.js Visualization"
+        },
+        "frontend-testing": {
+          "component": "testing",
+          "dependencies": [
+            "frontend-interactive-viz",
+            "frontend-country-selection"
+          ],
+          "description": "Develop unit tests for the interactive visualization and the country selection features using the existing testing structure in tests/frontend.test.js. Be sure to incorporate references from frontend/CLAUDE.md and validate that visual elements and interactive components behave as expected.",
+          "environment": {
+            "DELIVERABLES": "tests/frontend.test.js (updated tests for D3 visualization and dropdown selection)",
+            "ESTIMATED_TURNS": "8",
+            "TASK_COMPONENT": "testing"
+          },
+          "id": "frontend-testing",
+          "max_turns": 100,
+          "retry_count": 0,
+          "status": "pending",
+          "title": "Implement Frontend Unit Tests"
+        }
+      }
+    }
+  },
+  "task_status": {}
 }
