@@ -1,0 +1,267 @@
+/* Reset and base styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.6;
+    background-color: #f8f9fa;
+    color: #333;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Header styles */
+header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+header h1 {
+    font-size: 2.5rem;
+    color: #2c3e50;
+    margin-bottom: 10px;
+}
+
+header p {
+    font-size: 1.1rem;
+    color: #666;
+}
+
+/* Controls styles */
+.controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.control-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.control-group label {
+    font-weight: 600;
+    color: #2c3e50;
+    white-space: nowrap;
+}
+
+#year-slider {
+    width: 200px;
+    height: 6px;
+    background: #ddd;
+    outline: none;
+    border-radius: 3px;
+}
+
+#year-slider::-webkit-slider-thumb {
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    background: #3498db;
+    cursor: pointer;
+    border-radius: 50%;
+}
+
+#year-slider::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    background: #3498db;
+    cursor: pointer;
+    border-radius: 50%;
+    border: none;
+}
+
+#year-display {
+    font-weight: bold;
+    color: #3498db;
+    min-width: 50px;
+}
+
+#play-button {
+    background: #3498db;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background-color 0.3s;
+}
+
+#play-button:hover {
+    background: #2980b9;
+}
+
+#country-select {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    background: white;
+    min-width: 200px;
+}
+
+/* Visualization container */
+.visualization-container {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    padding: 20px;
+    margin-bottom: 20px;
+    overflow: hidden;
+}
+
+#scatter-plot {
+    display: block;
+    margin: 0 auto;
+}
+
+/* SVG styles */
+.country-circle {
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.country-circle:hover {
+    stroke-width: 2px !important;
+    stroke: #ff6b35 !important;
+}
+
+.x-axis-label, .y-axis-label {
+    font-size: 14px;
+    font-weight: 600;
+    fill: #2c3e50;
+}
+
+.chart-title {
+    font-size: 16px;
+    font-weight: 700;
+    fill: #2c3e50;
+}
+
+.axis text {
+    font-size: 12px;
+    fill: #666;
+}
+
+.axis line, .axis path {
+    stroke: #ddd;
+    stroke-width: 1;
+}
+
+/* Legend styles */
+.legend {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    padding: 20px;
+}
+
+.axis-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    color: #666;
+}
+
+/* Tooltip styles */
+.tooltip {
+    font-size: 12px;
+    line-height: 1.4;
+    border-radius: 4px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    z-index: 1000;
+}
+
+/* Error message styles */
+.error-message {
+    background: #f8d7da;
+    border: 1px solid #f5c6cb;
+    border-radius: 5px;
+    font-weight: 600;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .container {
+        padding: 15px;
+    }
+    
+    header h1 {
+        font-size: 2rem;
+    }
+    
+    .controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .control-group {
+        justify-content: space-between;
+        width: 100%;
+    }
+    
+    #year-slider {
+        width: 150px;
+    }
+    
+    #country-select {
+        min-width: 150px;
+    }
+    
+    .visualization-container {
+        padding: 10px;
+        overflow-x: auto;
+    }
+    
+    #scatter-plot {
+        min-width: 600px;
+    }
+    
+    .axis-labels {
+        flex-direction: column;
+        gap: 10px;
+        text-align: center;
+    }
+}
+
+/* Loading state */
+.loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 400px;
+    font-size: 18px;
+    color: #666;
+}
+
+.loading::after {
+    content: "";
+    width: 20px;
+    height: 20px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-left: 10px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
