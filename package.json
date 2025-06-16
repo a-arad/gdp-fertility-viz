@@ -1,0 +1,17 @@
+{
+  "name": "gdp-fertility-viz",
+  "version": "1.0.0",
+  "description": "Interactive D3 visualization of GDP vs fertility rate over time using World Bank data",
+  "scripts": {
+    "test": "jest",
+    "test:frontend": "jest tests/frontend.test.js"
+  },
+  "devDependencies": {
+    "jest": "^29.0.0",
+    "jest-environment-jsdom": "^29.0.0"
+  },
+  "jest": {
+    "testEnvironment": "jsdom",
+    "setupFilesAfterEnv": ["<rootDir>/tests/setup.js"]
+  }
+}
