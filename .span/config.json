@@ -117,7 +117,7 @@
           "id": "frontend-country-selection",
           "max_turns": 100,
           "retry_count": 0,
-          "status": "pending",
+          "status": "running",
           "title": "Add Country Selection Feature to Visualization"
         },
         "frontend-interactive-viz": {
