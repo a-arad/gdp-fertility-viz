@@ -134,7 +134,7 @@
           "id": "frontend-interactive-viz",
           "max_turns": 100,
           "retry_count": 0,
-          "status": "running",
+          "status": "completed",
           "title": "Create Interactive D3.js Visualization"
         },
         "frontend-testing": {
