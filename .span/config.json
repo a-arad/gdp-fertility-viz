@@ -1,0 +1,62 @@
+{
+  "orchestration": {
+    "auto_coordination": true,
+    "max_parallel_tasks": 3,
+    "review_required": true
+  },
+  "project": {
+    "architecture": {
+      "backend": {
+        "framework": "Flask",
+        "language": "Python",
+        "libraries": [
+          "wbgapi",
+          "flask-cors"
+        ]
+      },
+      "database": null,
+      "deployment": "Vercel",
+      "frontend": {
+        "framework": "vanilla",
+        "language": "JavaScript",
+        "libraries": [
+          "d3",
+          "axios"
+        ]
+      }
+    },
+    "description": "Interactive D3 visualization of GDP vs fertility rate over time using World Bank data",
+    "features": [
+      {
+        "description": "Python backend to fetch GDP and fertility rate data from World Bank API",
+        "name": "Data Fetching",
+        "priority": "high"
+      },
+      {
+        "description": "D3.js scatter plot with time slider showing GDP vs fertility rate",
+        "name": "Interactive Visualization",
+        "priority": "high"
+      },
+      {
+        "description": "Dropdown to select and highlight specific countries",
+        "name": "Country Selection",
+        "priority": "medium"
+      }
+    ],
+    "implementation_plan": {
+      "phases": [
+        {
+          "description": "Create Flask API to fetch World Bank data",
+          "name": "Backend Setup",
+          "tasks": []
+        },
+        {
+          "description": "Build D3 visualization with time controls",
+          "name": "Frontend Visualization",
+          "tasks": []
+        }
+      ]
+    },
+    "name": "gdp-fertility-viz"
+  }
+}
