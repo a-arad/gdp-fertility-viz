@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GDP vs Fertility Rate Visualization</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>GDP vs Fertility Rate Over Time</h1>
+            <p>Interactive visualization using World Bank data</p>
+        </header>
+        
+        <div class="controls">
+            <div class="control-group">
+                <label for="year-slider">Year: <span id="year-display">2020</span></label>
+                <input type="range" id="year-slider" min="1960" max="2023" value="2020" step="1">
+                <button id="play-button">Play</button>
+            </div>
+            
+            <div class="control-group">
+                <label for="country-select">Highlight Country:</label>
+                <select id="country-select">
+                    <option value="">Select a country...</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="visualization-container">
+            <svg id="scatter-plot"></svg>
+        </div>
+        
+        <div class="legend">
+            <div class="axis-labels">
+                <div class="x-axis-label">GDP per capita (USD)</div>
+                <div class="y-axis-label">Fertility rate (births per woman)</div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>
