@@ -1,0 +1,502 @@
+name: Span Task Orchestrator
+on:
+  repository_dispatch:
+    types:
+      - span-task
+      - span-coordinate
+      - span-retry
+      - span-review
+
+jobs:
+  execute-task:
+    if: github.event.action == 'span-task'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify prompt file exists
+        run: |
+          if [ ! -f ".span/tasks/${{ github.event.client_payload.task_id }}.md" ]; then
+            echo "ERROR: Prompt file not found!"
+            echo "Looking for: .span/tasks/${{ github.event.client_payload.task_id }}.md"
+            echo "Available files in .span/tasks/:"
+            ls -la .span/tasks/ || echo "Directory doesn't exist"
+            exit 1
+          fi
+          echo "Prompt file found: .span/tasks/${{ github.event.client_payload.task_id }}.md"
+
+      - name: Execute Claude Code Task
+        id: claude_task
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt_file: .span/tasks/${{ github.event.client_payload.task_id }}.md
+          allowed_tools: Bash,Edit,Write,Read,Glob,Grep,LS
+          max_turns: ${{ github.event.client_payload.max_turns || 500 }}
+          timeout_minutes: 30
+          claude_env: |
+            SPAN_TASK_ID: ${{ github.event.client_payload.task_id }}
+            SPAN_COMPONENT: ${{ github.event.client_payload.component }}
+            SPAN_PHASE: ${{ github.event.client_payload.phase }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Trigger PR Review
+        if: steps.claude_task.outputs.conclusion == 'success'
+        uses: actions/github-script@v7
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          script: |
+            // Check if a PR was created during task execution
+            const response = await github.rest.search.issuesAndPullRequests({
+              q: `repo:${context.repo.owner}/${context.repo.repo} is:pr is:open author:app/github-actions`,
+              sort: 'created',
+              order: 'desc',
+              per_page: 1
+            });
+
+            let prNumber = null;
+            if (response.data.items.length > 0) {
+              const pr = response.data.items[0];
+              // Check if PR was created in the last 5 minutes (during this workflow run)
+              const prCreatedAt = new Date(pr.created_at);
+              const now = new Date();
+              const timeDiff = (now - prCreatedAt) / (1000 * 60); // minutes
+
+              if (timeDiff <= 5) {
+                prNumber = pr.number;
+                console.log(`Found recently created PR #${prNumber}: ${pr.title}`);
+              }
+            }
+
+            if (prNumber) {
+              // Trigger PR review workflow
+              await github.rest.repos.createDispatchEvent({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                event_type: 'span-review',
+                client_payload: {
+                  task_id: '${{ github.event.client_payload.task_id }}',
+                  component: '${{ github.event.client_payload.component }}',
+                  pr_number: prNumber,
+                  triggered_by: 'pr-creation'
+                }
+              });
+            } else {
+              // No PR created, trigger coordination directly (task completed without PR)
+              await github.rest.repos.createDispatchEvent({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                event_type: 'span-coordinate',
+                client_payload: {
+                  completed_task: '${{ github.event.client_payload.task_id }}',
+                  component: '${{ github.event.client_payload.component }}',
+                  triggered_by: 'task-completion'
+                }
+              });
+            }
+
+  review-pr:
+    if: github.event.action == 'span-review'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Review and Merge PR
+        id: claude_review
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            You are reviewing PR #${{ github.event.client_payload.pr_number }} for span task: ${{ github.event.client_payload.task_id }}
+
+            ## Your Mission
+            1. Review the PR against the task requirements in `.span/tasks/${{ github.event.client_payload.task_id }}.md`
+            2. Check that it follows project guidelines in `CLAUDE.md`
+            3. Handle any merge conflicts intelligently
+            4. If it meets requirements: approve and merge the PR
+            5. If not: request specific changes in a review comment
+
+            ## Task Context
+            - Task ID: ${{ github.event.client_payload.task_id }}
+            - Component: ${{ github.event.client_payload.component }}
+            - PR Number: #${{ github.event.client_payload.pr_number }}
+
+            ## Review Process
+            1. Read the task file to understand requirements
+            2. Read CLAUDE.md for project guidelines
+            3. Check PR status and mergability: `gh pr view #${{ github.event.client_payload.pr_number }} --json mergeable,mergeStateStatus`
+            4. If there are merge conflicts, resolve them:
+               a. Checkout the PR branch: `gh pr checkout #${{ github.event.client_payload.pr_number }}`
+               b. Attempt merge with main: `git merge origin/main`
+               c. If conflicts occur, identify conflicted files: `git status --porcelain | grep "^UU"`
+               d. For each conflicted file, intelligently resolve by:
+                  - Understanding both changes using `git show HEAD:filename` and `git show origin/main:filename`
+                  - Merging changes that don't conflict functionally
+                  - Preserving both improvements when possible
+                  - Following project conventions from CLAUDE.md
+               e. Test the resolution works (run any relevant tests)
+               f. Commit the resolution: `git add . && git commit -m "resolve merge conflicts"`
+               g. Push the resolution: `git push`
+            5. Review the final PR changes carefully
+            6. Use `gh pr review` to approve or request changes
+            7. If approved, use `gh pr merge` to merge
+            8. Comment with your review decision and reasoning
+
+            ## Merge Conflict Resolution Strategy
+            When resolving conflicts:
+            - **Preserve both functional improvements** - don't discard working code
+            - **Follow existing patterns** - use the same style and structure as existing code
+            - **Maintain API compatibility** - don't break existing interfaces
+            - **Respect component boundaries** - frontend vs backend changes should be independent
+            - **Test after resolution** - ensure the merged code works correctly
+            - **Document significant conflicts** - explain resolution decisions in commit messages
+
+            Use the `gh` CLI tool for all GitHub operations. Be thorough but decisive.
+          allowed_tools: Bash,Read,LS,Edit,Write
+          max_turns: 50
+          timeout_minutes: 15
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SPAN_TASK_ID: ${{ github.event.client_payload.task_id }}
+          SPAN_COMPONENT: ${{ github.event.client_payload.component }}
+          SPAN_PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+
+      - name: Update Task Status and Trigger Coordination
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          TASK_ID: ${{ github.event.client_payload.task_id }}
+          COMPONENT: ${{ github.event.client_payload.component }}
+          PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+          REVIEW_CONCLUSION: ${{ steps.claude_review.outputs.conclusion }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          script: |
+            const taskId = process.env.TASK_ID;
+            const component = process.env.COMPONENT;
+            const prNumber = parseInt(process.env.PR_NUMBER);
+
+            // Check if PR was merged by Claude review
+            const prResponse = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber
+            });
+
+            if (prResponse.data.merged) {
+              console.log(`PR #${prNumber} was merged, updating task status`);
+
+              // Load span configuration
+              let configResponse;
+              try {
+                configResponse = await github.rest.repos.getContent({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  path: '.span/config.json'
+                });
+              } catch (error) {
+                console.error('Failed to load span configuration:', error);
+                throw error;
+              }
+
+              const configContent = Buffer.from(configResponse.data.content, 'base64').toString();
+              const config = JSON.parse(configContent);
+
+              // Update task status to completed (handle both old and new config structures)
+              const taskGraph = config.orchestration_plan?.task_graph || config.task_graph;
+              if (taskGraph && taskGraph.tasks && taskGraph.tasks[taskId]) {
+                taskGraph.tasks[taskId].status = 'completed';
+                console.log(`Marked task ${taskId} as completed`);
+
+                // Save updated configuration
+                const updatedConfig = JSON.stringify(config, null, 2);
+                const encodedContent = Buffer.from(updatedConfig).toString('base64');
+
+                await github.rest.repos.createOrUpdateFileContents({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  path: '.span/config.json',
+                  message: `Mark task ${taskId} as completed after PR merge`,
+                  content: encodedContent,
+                  sha: configResponse.data.sha
+                });
+
+                console.log('Updated span configuration with completed task status');
+              } else {
+                console.error(`Task ${taskId} not found in configuration`);
+              }
+
+              // Trigger coordination
+              await github.rest.repos.createDispatchEvent({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                event_type: 'span-coordinate',
+                client_payload: {
+                  completed_task: taskId,
+                  component: component,
+                  pr_number: prNumber,
+                  review_conclusion: 'success',
+                  triggered_by: 'claude-review-merge'
+                }
+              });
+
+              console.log('Triggered span-coordinate event');
+            } else {
+              console.log(`PR #${prNumber} was not merged, task remains pending`);
+              
+              // Still trigger coordination to handle retry logic
+              await github.rest.repos.createDispatchEvent({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                event_type: 'span-coordinate',
+                client_payload: {
+                  completed_task: taskId,
+                  component: component,
+                  pr_number: prNumber,
+                  review_conclusion: process.env.REVIEW_CONCLUSION || 'failure',
+                  triggered_by: 'claude-review-failure'
+                }
+              });
+            }
+
+  coordinate-dependencies:
+    if: github.event.action == 'span-coordinate'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Coordinate Task Dependencies
+        uses: actions/github-script@v7
+        env:
+          COMPLETED_TASK: ${{ github.event.client_payload.completed_task }}
+          COMPONENT: ${{ github.event.client_payload.component }}
+          REVIEW_CONCLUSION: ${{ github.event.client_payload.review_conclusion }}
+          PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+          TRIGGERED_BY: ${{ github.event.client_payload.triggered_by }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          script: |
+            // coordination_script.js - Task coordination logic for GitHub Actions
+
+            const completedTask = process.env.COMPLETED_TASK;
+            const component = process.env.COMPONENT;
+            const reviewConclusion = process.env.REVIEW_CONCLUSION;
+            const prNumber = process.env.PR_NUMBER;
+            const triggeredBy = process.env.TRIGGERED_BY;
+
+            console.log(`Task coordination triggered: ${completedTask} (${component}) - Review: ${reviewConclusion}, Triggered by: ${triggeredBy}`);
+
+            // Get span configuration to find dependent tasks
+            let configContent;
+            let configResponse;
+            try {
+              configResponse = await github.rest.repos.getContent({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                path: '.span/config.json'
+              });
+              configContent = Buffer.from(configResponse.data.content, 'base64').toString();
+            } catch (error) {
+              console.log('No span configuration found, skipping coordination');
+              return;
+            }
+
+            const config = JSON.parse(configContent);
+            const taskGraph = config.orchestration_plan?.task_graph || config.task_graph;
+
+            if (!taskGraph) {
+              console.log('No task graph found in configuration');
+              return;
+            }
+
+            // Handle different coordination scenarios
+            if (reviewConclusion === 'success' || triggeredBy === 'claude-review-merge') {
+              // Task completed successfully, mark as completed
+              if (taskGraph.tasks[completedTask]) {
+                taskGraph.tasks[completedTask].status = 'completed';
+                console.log(`Marked task ${completedTask} as completed (review successful)`);
+              }
+            } else if (reviewConclusion === 'failure' || triggeredBy === 'claude-review-failure') {
+              // Handle failed review - check for retry
+              await handleTaskRetry(completedTask, taskGraph, prNumber);
+            } else {
+              // Check for manually merged PRs or other coordination triggers
+              await checkManuallyMergedPRs(taskGraph);
+            }
+
+            // Function to handle task retry logic
+            async function handleTaskRetry(taskId, taskGraph, prNumber) {
+              const task = taskGraph.tasks[taskId];
+              if (!task) {
+                console.error(`Task ${taskId} not found in task graph`);
+                return;
+              }
+
+              const retryCount = task.retry_count || 0;
+
+              if (retryCount >= 1) {
+                console.log(`Task ${taskId} has exceeded retry limit (${retryCount}). Creating human review issue.`);
+
+                // Create issue for human review
+                await github.rest.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: `Human Review Required: Task ${taskId} Failed After Retry`,
+                  body: `Task **${taskId}** (${task.component}) has failed span-review twice and requires human intervention.
+
+            **Original PR**: #${prNumber}
+            **Retry Count**: ${retryCount}
+            **Status**: Requires manual review and completion
+
+            Please review the task requirements and either:
+            1. Manually complete the task and merge the PR
+            2. Provide additional guidance for task completion
+            3. Mark the task as completed if requirements are satisfied
+
+            The orchestration system will remain paused until this task is resolved.`,
+                  labels: ['span-review-failed', 'human-review-required']
+                });
+
+                return; // Don't trigger new tasks, wait for human intervention
+              }
+
+              // Increment retry count and reset to pending
+              task.retry_count = retryCount + 1;
+              task.status = 'pending';
+
+              console.log(`Task ${taskId} will be retried (attempt ${task.retry_count})`);
+
+              // Close the failed PR with explanation
+              if (prNumber) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: parseInt(prNumber),
+                  body: `🔄 **Task Retry Triggered**
+
+            This PR did not meet the span-review requirements. The task will be retried automatically.
+
+            **Retry attempt**: ${task.retry_count}/1
+            **Next steps**: A new PR will be created for this task.
+
+            ${task.retry_count >= 1 ? '⚠️ This is the final retry. If the next attempt fails, human review will be required.' : ''}`
+                });
+
+                await github.rest.pulls.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: parseInt(prNumber),
+                  state: 'closed'
+                });
+              }
+            }
+
+            // Function to check for manually merged PRs
+            async function checkManuallyMergedPRs(taskGraph) {
+              console.log('Checking for manually merged PRs...');
+
+              for (const [taskId, task] of Object.entries(taskGraph.tasks)) {
+                if (task.status === 'running') {
+                  // Check if there's a merged PR for this task
+                  const searchQuery = `repo:${context.repo.owner}/${context.repo.repo} is:pr is:merged "${taskId}"`;
+
+                  try {
+                    const searchResult = await github.rest.search.issuesAndPullRequests({
+                      q: searchQuery,
+                      sort: 'updated',
+                      order: 'desc',
+                      per_page: 5
+                    });
+
+                    for (const pr of searchResult.data.items) {
+                      if (pr.title.includes(taskId) || pr.body.includes(taskId)) {
+                        console.log(`Found manually merged PR #${pr.number} for task ${taskId}`);
+                        task.status = 'completed';
+                        break;
+                      }
+                    }
+                  } catch (error) {
+                    console.error(`Error checking PRs for task ${taskId}:`, error);
+                  }
+                }
+              }
+            }
+
+            // Find ALL tasks that are ready to run (dependencies satisfied)
+            const readyTasks = [];
+            for (const [taskId, task] of Object.entries(taskGraph.tasks)) {
+              // Skip non-pending tasks
+              if (task.status !== 'pending') {
+                continue;
+              }
+
+              const taskDependencies = taskGraph.dependencies[taskId] || [];
+
+              // Check if all dependencies are satisfied
+              const allDepsSatisfied = taskDependencies.every(dep => {
+                const depTask = taskGraph.tasks[dep];
+                return depTask && depTask.status === 'completed';
+              });
+
+              if (allDepsSatisfied) {
+                readyTasks.push(taskId);
+              }
+            }
+
+            console.log(`Found ${readyTasks.length} ready tasks: ${readyTasks.join(', ')}`);
+
+            // Trigger ready tasks (max 3 concurrent)
+            const maxConcurrent = 3;
+            const tasksToTrigger = readyTasks.slice(0, maxConcurrent);
+
+            for (const taskId of tasksToTrigger) {
+              const task = taskGraph.tasks[taskId];
+
+              console.log(`Triggering task: ${task.title} (${task.component})`);
+
+              // Trigger repository dispatch for the task
+              await github.rest.repos.createDispatchEvent({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                event_type: 'span-task',
+                client_payload: {
+                  task_id: taskId,
+                  task_title: task.title,
+                  component: task.component,
+                  retry_count: 0
+                }
+              });
+
+              // Update task status to running in config
+              taskGraph.tasks[taskId].status = 'running';
+            }
+
+            // Update the configuration file with new task statuses
+            if (tasksToTrigger.length > 0) {
+              const updatedConfig = JSON.stringify(config, null, 2);
+              const encodedContent = Buffer.from(updatedConfig).toString('base64');
+
+              await github.rest.repos.createOrUpdateFileContents({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                path: '.span/config.json',
+                message: `Update task statuses: triggered ${tasksToTrigger.join(', ')}`,
+                content: encodedContent,
+                sha: configResponse.data.sha
+              });
+
+              console.log('Updated span configuration with new task statuses');
+            }
