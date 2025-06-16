@@ -79,7 +79,18 @@ describe('GDPFertilityVisualization', () => {
     });
     
     test('should handle country selection', () => {
-        expect(true).toBe(true); // Placeholder test
+        // Test that country selection dropdown functionality is implemented
+        const countrySelectElement = document.getElementById('country-select');
+        expect(countrySelectElement).toBeTruthy();
+        
+        // Simulate country selection
+        const changeEvent = new Event('change');
+        countrySelectElement.value = 'USA';
+        countrySelectElement.dispatchEvent(changeEvent);
+        
+        // Since we're mocking d3, we can't test the actual highlighting
+        // but we can verify the structure exists
+        expect(true).toBe(true);
     });
 });
 
